@@ -5,6 +5,7 @@
 var BeanTubeModule = require('./beanstalk_tube');
 var BeanJobModule = require('./beanstalk_job');
 var BeanClientModule = require('./beanstalk_client');
+var moment = require("moment");
 var _ = require("underscore");
 
 const CMD_PUT = 0;
@@ -67,7 +68,7 @@ var BeanProcessor = function()
 
     self.processCommandList = function()
     {
-        var list = _.clone(self.jobs_list);
+        var list = _.clone(self.command_list);
         _.forEach(list, function (_cmd) {
             self.processCommand(_cmd);
         })
@@ -98,11 +99,11 @@ var BeanProcessor = function()
         } else if (command == 'peek'){
             self.commandTouch(bean_command.client, bean_command.commandline[1]);
         } else if (command == 'peek-ready'){
-            self.commandPeekState(bean_command.client, BeanClientModule.BeanJob.jobStates.READY);
+            self.commandPeekState(bean_command.client, BeanJobModule.JOBSTATE_READY);
         } else if (command == 'peek-delayed'){
-            self.commandReserve(bean_command.client, BeanClientModule.BeanJob.jobStates.DELAYED);
+            self.commandReserve(bean_command.client, BeanJobModule.JOBSTATE_DELAYED);
         } else if (command == 'peek-buried'){
-            self.commandReserve(bean_command.client, BeanClientModule.BeanJob.jobStates.BURIED);
+            self.commandReserve(bean_command.client, BeanJobModule.JOBSTATE_BURIED);
         } else if (command == 'kick'){
             self.commandKickTube(bean_command.client, bean_command.commandline[1], bean_command.commandline[2]);
         } else if (command == 'kick-job'){
@@ -123,17 +124,17 @@ var BeanProcessor = function()
     self.checkJobTimeout = function()
     {
         _.forEach(self.jobs_list, function (_job) {
-            if (_job.state == BeanClientModule.BeanJob.jobStates.RESERVED
+            if (_job.state == BeanJobModule.JOBSTATE_RESERVED
                 && _job.timeout_at.add(2, 'second').isAfter()){
                 // if 1 second before timeout, send DEADLINE_SOON
                 _job.client.send('DEADLINE_SOON');
-            } else if (_job.state == BeanClientModule.BeanJob.jobStates.RESERVED
+            } else if (_job.state == BeanJobModule.JOBSTATE_RESERVED
                 && _job.timeout_at.add(1, 'second').isAfter()){
                 // if beyond timeout, send TIMED_OUT
                 _job.timeout();
                 self.eventCounts[CMD_JOB_TIMEOUT]++;
                 _job.client.send('TIMED_OUT');
-            } else if (_job.state == BeanClientModule.BeanJob.jobStates.DELAYED
+            } else if (_job.state == BeanJobModule.JOBSTATE_DELAYED
                 && _job.timeout_at.add(1, 'second').isAfter()){
                 // if we're delayed and ready to go
                 _job.release(0);
@@ -224,12 +225,12 @@ var BeanProcessor = function()
             return;
         }
 
-        if (data.length != byte_count){
+        if (data.length != parseInt(byte_count)){
             sender.send('EXPECTED_CRLF');
             return;
         }
 
-        if (priority < 0 || priority > 4294967295){
+        if (parseInt(priority) < 0 || parseInt(priority) > 4294967295){
             sender.send('BAD_FORMAT');
             return;
         }
@@ -244,7 +245,7 @@ var BeanProcessor = function()
         // add it to the jobs list
         var job = new BeanJobModule.BeanJob(sender, tube, priority, time_to_run, delay);
         if (delay > 0){
-            job.state = BeanClientModule.BeanJob.jobStates.DELAYED;
+            job.state = BeanJobModule.JOBSTATE_DELAYED;
         }
         job.data = data;
         job.updateFile();
@@ -296,12 +297,12 @@ var BeanProcessor = function()
     self.getJobsForClient = function(sender, state)
     {
         if (state == undefined){
-            state = BeanClientModule.BeanJob.jobStates.READY;
+            state = BeanJobModule.JOBSTATE_READY;
         }
 
         // get the list of jobs in the watched tubes
-        var watched_jobs = _(watched_jobs).chain()
-            .filter(self.jobs_list, function(_job){
+        var watched_jobs = _(self.jobs_list).chain()
+            .filter(function(_job){
                 var tube = self.findTube(_job.tube);
                 return _.contains(sender.watching, _job.tube)   // client is watching the tube
                         && !tube.paused
@@ -466,7 +467,7 @@ var BeanProcessor = function()
             .filter(self.jobs_list, function(_job){
                 var tube = self.findTube(_job.tube);
                 return tube_name == _job.tube
-                    && _job.state == BeanClientModule.BeanJob.jobStates.BURIED;
+                    && _job.state == BeanJobModule.JOBSTATE_BURIED;
             })
             .sortBy('timeout_at')
             .reverse()
@@ -477,7 +478,7 @@ var BeanProcessor = function()
             .filter(self.jobs_list, function(_job){
                 var tube = self.findTube(_job.tube);
                 return tube_name == _job.tube
-                    && _job.state == BeanClientModule.BeanJob.jobStates.DELAYED;
+                    && _job.state == BeanJobModule.JOBSTATE_DELAYED;
             })
             .sortBy('timeout_at')
             .reverse()
@@ -508,9 +509,9 @@ var BeanProcessor = function()
             msg += "- tube: "+job.tube+"\r\n";
 
             var state_string = "ready";
-            if (job.state == BeanClientModule.BeanJob.jobStates.DELAYED) state_string = "delayed";
-            else if (job.state == BeanClientModule.BeanJob.jobStates.RESERVED) state_string = "reserved";
-            else if (job.state == BeanClientModule.BeanJob.jobStates.BURIED) state_string = "buried";
+            if (job.state == BeanJobModule.JOBSTATE_DELAYED) state_string = "delayed";
+            else if (job.state == BeanJobModule.JOBSTATE_RESERVED) state_string = "reserved";
+            else if (job.state == BeanJobModule.JOBSTATE_BURIED) state_string = "buried";
             msg += "- state: "+state_string+"\r\n";
 
             msg += "- pri: "+job.priority+"\r\n";
@@ -551,16 +552,16 @@ var BeanProcessor = function()
             var list = _.find(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.priority < 1024; });
             msg += "- current-jobs-urgent: "+list.length+"\r\n";
 
-            list = _.find(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.status == BeanClientModule.BeanJob.jobStates.READY; });
+            list = _.find(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.status == BeanJobModule.JOBSTATE_READY; });
             msg += "- current-jobs-ready: "+list.length+"\r\n";
 
-            list = _.find(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.status == BeanClientModule.BeanJob.jobStates.RESERVED; });
+            list = _.find(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.status == BeanJobModule.JOBSTATE_RESERVED; });
             msg += "- current-jobs-reserved: "+list.length+"\r\n";
 
-            list = _.find(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.status == BeanClientModule.BeanJob.jobStates.DELAYED; });
+            list = _.find(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.status == BeanJobModule.JOBSTATE_DELAYED; });
             msg += "- current-jobs-delayed: "+list.length+"\r\n";
 
-            list = _.find(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.status == BeanClientModule.BeanJob.jobStates.BURIED; });
+            list = _.find(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.status == BeanJobModule.JOBSTATE_BURIED; });
             msg += "- current-jobs-buried: "+list.length+"\r\n";
 
             msg += "- total-jobs: "+tube.total_jobs+"\r\n";
@@ -604,16 +605,16 @@ var BeanProcessor = function()
         var list = _.find(self.jobs_list, function(_job){ return _job.priority < 1024; });
         msg += "- current-jobs-urgent: "+list.length+"\r\n";
 
-        list = _.find(self.jobs_list, function(_job){ return _job.status == BeanClientModule.BeanJob.jobStates.READY; });
+        list = _.find(self.jobs_list, function(_job){ return _job.status == BeanJobModule.JOBSTATE_READY; });
         msg += "- current-jobs-ready: "+list.length+"\r\n";
 
-        list = _.find(self.jobs_list, function(_job){ return _job.status == BeanClientModule.BeanJob.jobStates.RESERVED; });
+        list = _.find(self.jobs_list, function(_job){ return _job.status == BeanJobModule.JOBSTATE_RESERVED; });
         msg += "- current-jobs-reserved: "+list.length+"\r\n";
 
-        list = _.find(self.jobs_list, function(_job){ return _job.status == BeanClientModule.BeanJob.jobStates.DELAYED; });
+        list = _.find(self.jobs_list, function(_job){ return _job.status == BeanJobModule.JOBSTATE_DELAYED; });
         msg += "- current-jobs-delayed: "+list.length+"\r\n";
 
-        list = _.find(self.jobs_list, function(_job){ return _job.status == BeanClientModule.BeanJob.jobStates.BURIED; });
+        list = _.find(self.jobs_list, function(_job){ return _job.status == BeanJobModule.JOBSTATE_BURIED; });
         msg += "- current-jobs-buried: "+list.length+"\r\n";
 
         msg += "- cmd-put: "+self.eventCounts[CMD_PUT]+"\r\n";

@@ -3,7 +3,7 @@
  */
 
 var _ = require("underscore");
-var BeanCommandModule = require("./bean_command");
+var BeanCommandModule = require("./beanstalk_command");
 
 var BeanClient = function(socket, processor)
 {
@@ -88,7 +88,7 @@ var BeanClient = function(socket, processor)
     {
         // list-tubes-watched, list-tube-used, watch, ignore
         if (/^put /.test(self.command)) {
-            if (/^put \d+ \d+ \d+ \d+\r\n$/i.test(subject)) {
+            if (/^put \d+ \d+ \d+ \d+$/i.test(self.command)) {
                 var cmd = new BeanCommandModule.BeanCommand();
                 cmd.command_type = 0;
                 cmd.commandline = self.command.split(' ');
@@ -100,11 +100,11 @@ var BeanClient = function(socket, processor)
             } else {
                 self.send('BAD_FORMAT');
             }
-        } else if (/^quit\r\n$/.test(self.command)) {
+        } else if (/^quit$/.test(self.command)) {
             self.socket.end();
         } else if (/^use /i.test(self.command)) {
-            var myregexp = /^use (\S+)\r\n$/i;
-            var match = myregexp.exec(subject);
+            var myregexp = /^use (\S+)$/i;
+            var match = myregexp.exec(self.command);
             if (match != null) {
                 self.useTube(tube);
                 processor.eventCounts[CMD_USE]++;
@@ -112,8 +112,8 @@ var BeanClient = function(socket, processor)
                 self.send('BAD_FORMAT');
             }
         } else if (/^watch /.test(self.command)) {
-            var myregexp = /^watch (\S+)\r\n$/i;
-            var match = myregexp.exec(subject);
+            var myregexp = /^watch (\S+)$/i;
+            var match = myregexp.exec(self.command);
             if (match != null) {
                 self.watchTube(tube);
                 processor.eventCounts[CMD_WATCH]++;
@@ -121,35 +121,35 @@ var BeanClient = function(socket, processor)
                 self.send('BAD_FORMAT');
             }
         } else if (/^ignore /.test(self.command)) {
-            var myregexp = /^ignore (\S+)\r\n$/i;
-            var match = myregexp.exec(subject);
+            var myregexp = /^ignore (\S+)$/i;
+            var match = myregexp.exec(self.command);
             if (match != null) {
                 self.ignoreTube(tube);
                 processor.eventCounts[CMD_IGNORE]++;
             } else {
                 self.send('BAD_FORMAT');
             }
-        } else if (/^list-tube-used\r\n$/.test(self.command)) {
+        } else if (/^list-tube-used$/.test(self.command)) {
             self.listTubeUsed()
-        } else if (/^list-tubes-watched\r\n$/.test(self.command)) {
+        } else if (/^list-tubes-watched$/.test(self.command)) {
             self.listTubeWatched();
-        } else if (/^reserve\r\n$/.test(self.command)
-            || /^reserve-with-timeout \d+\r\n$/.test(self.command)
-            || /^delete \d+\r\n$/.test(self.command)
-            || /^release \d+ \d+ \d+\r\n$/.test(self.command)
-            || /^bury \d+ \d+\r\n$/.test(self.command)
-            || /^touch \d+\r\n$/.test(self.command)
-            || /^peek \d+\r\n$/.test(self.command)
-            || /^peek-ready\r\n$/.test(self.command)
-            || /^peek-delayed\r\n$/.test(self.command)
-            || /^peek-buried\r\n$/.test(self.command)
-            || /^kick \d+\r\n$/.test(self.command)
-            || /^kick-job \d+\r\n$/.test(self.command)
-            || /^stats-job \d+\r\n$/.test(self.command)
-            || /^stats-tube \S+\r\n$/.test(self.command)
-            || /^stats\r\n$/.test(self.command)
-            || /^list-tubes\r\n$/.test(self.command)
-            || /^pause-tube \S+ \d+\r\n$/.test(self.command)
+        } else if (/^reserve$/.test(self.command)
+            || /^reserve-with-timeout \d+$/.test(self.command)
+            || /^delete \d+$/.test(self.command)
+            || /^release \d+ \d+ \d+$/.test(self.command)
+            || /^bury \d+ \d+$/.test(self.command)
+            || /^touch \d+$/.test(self.command)
+            || /^peek \d+$/.test(self.command)
+            || /^peek-ready$/.test(self.command)
+            || /^peek-delayed$/.test(self.command)
+            || /^peek-buried$/.test(self.command)
+            || /^kick \d+$/.test(self.command)
+            || /^kick-job \d+$/.test(self.command)
+            || /^stats-job \d+$/.test(self.command)
+            || /^stats-tube \S+$/.test(self.command)
+            || /^stats$/.test(self.command)
+            || /^list-tubes$/.test(self.command)
+            || /^pause-tube \S+ \d+$/.test(self.command)
         ) {
             var cmd = new BeanCommandModule.BeanCommand();
             cmd.command_type = 0;
@@ -171,6 +171,7 @@ var BeanClient = function(socket, processor)
     {
         data = String(data); // this is a really terrible idea... fix it
         var data_parts = String(data).split(/\r\n/);
+        data_parts = _.compact(data_parts);
         var ends_in_crlf = /\r\n$/.test(data);
 
         var counter = 0;
@@ -193,7 +194,8 @@ var BeanClient = function(socket, processor)
             ){
                 // command is not a put and is complete, so process it
                 self.createBeanCommand();
-            } else if (/^put /.test(self.command)){
+            } else if (self.in_command_state
+                && /^put /.test(self.command)){
                 // it is a put, so we go to data mode
                 self.in_command_state = false;
             } else if (!self.in_command_state    // in a data state

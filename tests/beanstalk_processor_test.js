@@ -57,7 +57,7 @@ suite('Processor', function() {
             job.delete();
         });
 
-        test('put with new tube', function() {
+        test('put with existing tube', function() {
             var proc = new BeanProcessorModule.BeanProcessor();
 
             var incoming_data = [];
@@ -158,7 +158,7 @@ suite('Processor', function() {
 
 
 
-    suite.only('Processor Delete', function() {
+    suite('Processor Delete', function() {
 
         test('delete existing message', function () {
             var proc = new BeanProcessorModule.BeanProcessor();
