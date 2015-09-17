@@ -51,6 +51,7 @@ suite('Client', function()
         });
         client.tube = tube;
         client.watching.push(tube);
+        proc.bean_clients.push(client);
         return client;
     };
 
@@ -232,8 +233,10 @@ suite('Client', function()
  | $$  \ $$| $$       /$$  \ $$| $$      | $$  \ $$  \  $$$/  | $$
  | $$  | $$| $$$$$$$$|  $$$$$$/| $$$$$$$$| $$  | $$   \  $/   | $$$$$$$$
  |__/  |__/|________/ \______/ |________/|__/  |__/    \_/    |________/
+
+ http://patorjk.com/software/taag/#p=display&f=Big%20Money-ne&t=RESERVE
  */
-    suite.only('Reserve', function() {
+    suite('Reserve', function() {
 
         test('basic reserve', function ()
         {
@@ -261,5 +264,70 @@ suite('Client', function()
 
             assert(/^TIMED OUT\r\n$/.test(incoming_data[0]), "did not receive a not found message");
         });
+
+        test('available outside of tube', function ()
+        {
+            var proc = createProcessorWithTube('testtube');
+            var client = createClient('anothertube', proc);
+            var job = addJob(proc, client);
+
+            client.dataReceived("reserve\r\n");
+            proc.processCommandList();
+
+            assert(/^TIMED OUT\r\n$/.test(incoming_data[0]), "did not receive a not found message");
+        });
+    });
+
+
+
+
+
+
+    /*
+     /$$$$$$$  /$$$$$$$$  /$$$$$$        /$$$$$$$$ /$$$$$$ /$$      /$$ /$$$$$$$$  /$$$$$$  /$$   /$$ /$$$$$$$$
+     | $$__  $$| $$_____/ /$$__  $$      |__  $$__/|_  $$_/| $$$    /$$$| $$_____/ /$$__  $$| $$  | $$|__  $$__/
+     | $$  \ $$| $$      | $$  \__/         | $$     | $$  | $$$$  /$$$$| $$      | $$  \ $$| $$  | $$   | $$
+     | $$$$$$$/| $$$$$   |  $$$$$$          | $$     | $$  | $$ $$/$$ $$| $$$$$   | $$  | $$| $$  | $$   | $$
+     | $$__  $$| $$__/    \____  $$         | $$     | $$  | $$  $$$| $$| $$__/   | $$  | $$| $$  | $$   | $$
+     | $$  \ $$| $$       /$$  \ $$         | $$     | $$  | $$\  $ | $$| $$      | $$  | $$| $$  | $$   | $$
+     | $$  | $$| $$$$$$$$|  $$$$$$/         | $$    /$$$$$$| $$ \/  | $$| $$$$$$$$|  $$$$$$/|  $$$$$$/   | $$
+     |__/  |__/|________/ \______/          |__/   |______/|__/     |__/|________/ \______/  \______/    |__/
+     */
+    suite.only('Reserve Timeout', function() {
+        test('basic reserve', function () {
+            var proc = createProcessorWithTube('testtube');
+            var client = createClient('testtube', proc);
+
+            client.dataReceived("reserve-with-timeout 5\r\n");
+            proc.processCommandList();
+
+            // should be nothing in incoming
+            assert(0==incoming_data.length, "incoming_data has a message: "+incoming_data[0]);
+
+            var job = addJob(proc, client);
+            proc.checkClientReserves();
+
+            var result = incoming_data[0].split("\r\n");
+            assert(/^RESERVED \d+ \d+$/.test(result[0]), "did not receive a reserved message");
+            assert(/^this is data$/.test(result[1]), "data text is different");
+
+            assert(job.state == BeanJobModule.JOBSTATE_RESERVED, "not marked reserved");
+        });
+
+        /*
+        test('reserve timeout', function () {
+            var proc = createProcessorWithTube('testtube');
+            var client = createClient('testtube', proc);
+
+            client.dataReceived("reserve-with-timeout 1\r\n");
+            proc.processCommandList();
+
+            // sleep for 2 seconds
+            setTimeout(function(){
+                proc.checkClientReserves();
+                assert(/^TIMED OUT\r\n$/.test(incoming_data[0]), "other than not found message");
+            }, 2000);
+        });
+        */
     });
 });

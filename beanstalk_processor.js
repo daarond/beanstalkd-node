@@ -5,6 +5,7 @@
 var BeanTubeModule = require('./beanstalk_tube');
 var BeanJobModule = require('./beanstalk_job');
 var BeanClientModule = require('./beanstalk_client');
+
 var moment = require("moment");
 var _ = require("underscore");
 
@@ -38,6 +39,7 @@ const CMD_TOUCH = 23;
 var BeanProcessor = function()
 {
     var self = this;
+    self.bean_clients = [];
     self.id = moment().format('x');
     self.drain_mode = false;
     self.freeze = true;
@@ -154,14 +156,17 @@ var BeanProcessor = function()
 
     self.checkClientReserves = function()
     {
-        _.forEach(bean_clients, function(_client){
+        _.forEach(self.bean_clients, function(_client){
             if (_client.reserving
             && _client.reserving_until.isBefore()) {
-                var job = self.getJobsForClient(_client);
-                if (job != null){
+                var job_list = self.getJobsForClient(_client);
+                if (job_list.length>0){
                     _client.isWorker = true;
-                    job.reserve(_client);
+                    job_list[0].reserve(_client);
                 }
+            } else if (_client.reserving
+                && _client.reserving_until.isAfter()) {
+                _client.send('TIMED OUT');
             }
         });
     };
@@ -172,7 +177,7 @@ var BeanProcessor = function()
         var used_list = _.pluck(self.jobs_list, 'tube');
 
         // get the list of tubes used by clients
-        used_list.concat(_.pluck(bean_clients, 'tube'));
+        used_list.concat(_.pluck(self.bean_clients, 'tube'));
 
         _.uniq(used_list);
 
@@ -566,13 +571,13 @@ var BeanProcessor = function()
 
             msg += "- total-jobs: "+tube.total_jobs+"\r\n";
 
-            list = _.find(bean_clients, function(_client){ return _client.tube == tube.name; });
+            list = _.find(self.bean_clients, function(_client){ return _client.tube == tube.name; });
             msg += "- current-using: "+list.length+"\r\n";
 
-            list = _.find(bean_clients, function(_client){ return _client.reserving; });
+            list = _.find(self.bean_clients, function(_client){ return _client.reserving; });
             msg += "- current-waiting: "+list.length+"\r\n";
 
-            list = _.find(bean_clients, function(_client){ return _.indexOf(_client.watching, tube.name); });
+            list = _.find(self.bean_clients, function(_client){ return _.indexOf(_client.watching, tube.name); });
             msg += "- current-watching: "+list.length+"\r\n";
 
             var startmoment = moment(tube.pause_start);
@@ -645,15 +650,15 @@ var BeanProcessor = function()
 
         msg += "- current-tubes: "+self.tubes.length+"\r\n";
 
-        msg += "- current-connections: "+bean_clients.length+"\r\n";
+        msg += "- current-connections: "+self.bean_clients.length+"\r\n";
 
-        var producers = _.findWhere(bean_clients, {isProducer: true});
+        var producers = _.findWhere(self.bean_clients, {isProducer: true});
         msg += "- current-producers: "+producers.length+"\r\n";
 
-        var workers = _.findWhere(bean_clients, {isWorker: true});
+        var workers = _.findWhere(self.bean_clients, {isWorker: true});
         msg += "- current-workers: "+workers.length+"\r\n";
 
-        var waiting = _.findWhere(bean_clients, {reserving: true});
+        var waiting = _.findWhere(self.bean_clients, {reserving: true});
         msg += "- current-waiting: "+waiting.length+"\r\n";
 
         msg += "- pid: 0\r\n";

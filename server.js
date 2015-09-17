@@ -13,7 +13,6 @@ var device  = require('express-device');
 var _ = require("underscore");
 var net = require('net');
 var BeanClientModule = require('./beanstalk_client');
-var BeanProcessorModule = require('./beanstalk_processor');
 
 var runningPortNumber = 8002;
 
@@ -65,10 +64,9 @@ io.sockets.on('connection', function (socket) {
 
 
 
-var bean_clients = [];
-var bean_processor = new BeanProcessorModule.BeanProcessor();
 
 
+var proc = new BeanProcessorModule.BeanProcessor();
 
 
 /*
@@ -77,7 +75,7 @@ var bean_processor = new BeanProcessorModule.BeanProcessor();
 function receiveData(socket, data)
 {
     // find the client
-    var _client = _.find(bean_clients, function (obj) {
+    var _client = _.find(proc.bean_clients, function (obj) {
         return obj.socket == socket;
     });
 
@@ -104,7 +102,7 @@ function newSocket(socket) {
     sockets.push(socket);
     socket.write('Welcome to the Telnet server!\n');
 
-    bean_clients.push(new BeanClientModule.BeanClient(socket, bean_processor));
+    proc.bean_clients.push(new BeanClientModule.BeanClient(socket, bean_processor));
 
     socket.on('data', function(data) {
         receiveData(socket, data);
