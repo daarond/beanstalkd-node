@@ -1,21 +1,23 @@
 {
   "name": "beanstalknoded",
-  "description": "",
-  "author": "",
+  "description": "beanstalk implemented in node.js",
+  "author": "Daaron Dwyer <daarond@gmail.com>",
   "version": "0.0.1",
   "main": "server.js",
   "private": true,
-  "repository": "",
+  "repository": "https://github.com/daarond/beanstalkd-node",
   "dependencies": {
     "ejs": "~0.8.5",
     "express": "3.*",
     "express-device": "~0.4.1",
+    "js-yaml": "^3.4.2",
     "moment": "2.*",
     "node-constants": "0.0.2",
     "socket.io": "*",
     "underscore": "1.*"
   },
   "devDependencies": {
+    "karma-coverage": "^0.5.2",
     "grunt": "~0.4.1",
     "bower": "*",
     "grunt-concurrent": "~0.4.2",

@@ -4,6 +4,8 @@
 
 var _ = require("underscore");
 var BeanCommandModule = require("./beanstalk_command");
+var BeanProcessorModule = require("./beanstalk_processor");
+var yaml = require('js-yaml');
 
 var BeanClient = function(socket, processor)
 {
@@ -48,14 +50,17 @@ var BeanClient = function(socket, processor)
         if (tube == null){
             self.send('BAD_FORMAT');
         } else {
-            self.watching.push(tube_name);
+            if (_.indexOf(self.watching, tube_name) == -1) {
+                // we are not currently watching this tube
+                self.watching.push(tube_name);
+            }
             self.send("WATCHING "+self.watching.length);
         }
     };
 
     self.ignoreTube = function(tube_name)
     {
-        var new_list = _.reject(self.watching, function(_tube){ return _tube.name == tube_name; });
+        var new_list = _.reject(self.watching, function(_tube){ return _tube == tube_name; });
 
         if (new_list.length == 0){
             self.send('NOT_IGNORED');
@@ -66,21 +71,16 @@ var BeanClient = function(socket, processor)
 
     self.listTubeWatched = function()
     {
-        // faking some yaml here
-        var msg = "";
-
-        _.forEach(self.watching, function(_tube){
-            msg += "- "+_tube+"\r\n";
-        });
+        var msg = msg = yaml.safeDump(self.watching);
 
         msg = "OK "+msg.length+"\r\n" + msg;
         self.send(msg);
-        processor.eventCounts[CMD_LIST_TUBES_WATCHED]++;
+        processor.eventCounts[BeanProcessorModule.CMD_LIST_TUBES_WATCHED]++;
     };
 
     self.listTubeUsed = function()
     {
-        processor.eventCounts[CMD_LIST_TUBE_USED]++;
+        processor.eventCounts[BeanProcessorModule.CMD_LIST_TUBE_USED]++;
         self.send("USING "+self.tube);
     };
 
@@ -106,8 +106,8 @@ var BeanClient = function(socket, processor)
             var myregexp = /^use (\S+)$/i;
             var match = myregexp.exec(self.command);
             if (match != null) {
-                self.useTube(tube);
-                processor.eventCounts[CMD_USE]++;
+                self.useTube(match[1]);
+                processor.eventCounts[BeanProcessorModule.CMD_USE]++;
             } else {
                 self.send('BAD_FORMAT');
             }
@@ -115,8 +115,8 @@ var BeanClient = function(socket, processor)
             var myregexp = /^watch (\S+)$/i;
             var match = myregexp.exec(self.command);
             if (match != null) {
-                self.watchTube(tube);
-                processor.eventCounts[CMD_WATCH]++;
+                self.watchTube(match[1]);
+                processor.eventCounts[BeanProcessorModule.CMD_WATCH]++;
             } else {
                 self.send('BAD_FORMAT');
             }
@@ -124,8 +124,8 @@ var BeanClient = function(socket, processor)
             var myregexp = /^ignore (\S+)$/i;
             var match = myregexp.exec(self.command);
             if (match != null) {
-                self.ignoreTube(tube);
-                processor.eventCounts[CMD_IGNORE]++;
+                self.ignoreTube(match[1]);
+                processor.eventCounts[BeanProcessorModule.CMD_IGNORE]++;
             } else {
                 self.send('BAD_FORMAT');
             }
@@ -158,7 +158,7 @@ var BeanClient = function(socket, processor)
             cmd.tube = self.tube;
             processor.addToCommandQueue(cmd);
         } else {
-            self.send('UNKNOWN_COMMAND');
+            self.send('BAD_FORMAT');
         }
 
         // init after add

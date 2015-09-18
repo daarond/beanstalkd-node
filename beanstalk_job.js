@@ -20,16 +20,22 @@ var BeanJob = function(client, tube, priority, time_to_run, delay_seconds)
 {
     var self = this;
 
+    self.id = 0;
     self.data = '';
     self.client = client;
     self.tube = tube;
-    self.id = moment().format('x');
     self.eventCounts = [];
     self.state = BeanJobModule.JOBSTATE_READY;
     self.time_to_run = time_to_run;
     self.delay_until = moment().add(delay_seconds, 'seconds');
     self.timeout_at = moment().add(delay_seconds + time_to_run, 'seconds');
     self.priority = priority;
+
+    self.assignId = function()
+    {
+        self.id = moment().format('x')+Math.floor(Math.random() * 100);
+    };
+    self.assignId();
 
     self.updateFile = function()
     {
@@ -59,10 +65,9 @@ var BeanJob = function(client, tube, priority, time_to_run, delay_seconds)
 
     self.release = function(delay_seconds)
     {
-        self.eventCounts[BeanJobModule.COUNTER_RELEASES]++;
-
         if (delay_seconds == null || delay_seconds == 0) {
             self.state = BeanJobModule.JOBSTATE_READY;
+            self.eventCounts[BeanJobModule.COUNTER_RELEASES]++;
         } else {
             self.state = BeanJobModule.JOBSTATE_DELAYED;
             self.delay_until = moment().add(delay_seconds, 'seconds');
