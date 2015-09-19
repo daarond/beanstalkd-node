@@ -4,7 +4,7 @@
 var moment = require('moment');
 
 var LIVERELOAD_PORT = 35729;
-var RUNNING_PORT = 1337; // <- if you change this, you need to change in public/js/app.js and recompile
+var RUNNING_PORT = 8002; // <- if you change this, you need to change in public/js/app.js and recompile
 var lrSnippet = require('connect-livereload')({port: LIVERELOAD_PORT});
 var mountFolder = function (connect, dir) {
   return connect.static(require('path').resolve(dir));
@@ -66,8 +66,6 @@ module.exports = function (grunt) {
         stripBanners:true
       },
       dist: {
-        src: ['public/js/app.js'],
-        dest: 'public/js/concat.js',
       },
     },
 
@@ -83,7 +81,7 @@ module.exports = function (grunt) {
         }
       },
       files:{
-        src:['public/js/concat.js']
+        src:[]
       }
     },
 
@@ -93,7 +91,7 @@ module.exports = function (grunt) {
       },
       my_target: {
         files: {
-          'public/js/app.min.js': ['public/js/concat.js']
+          'public/js/app.min.js': []
         }
       }
     },
@@ -202,7 +200,7 @@ module.exports = function (grunt) {
 
   //grunt.registerTask('server', ['build', 'connect:livereload', 'open', 'watch']);
 
-  grunt.registerTask('build', ['cssmin', 'concat', 'uglify']);
+  grunt.registerTask('build', ['cssmin', 'uglify']);
 
   grunt.registerTask('launch', ['wait', 'open']);
 

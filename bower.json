@@ -1,7 +1,28 @@
 {
-  "name": "beanstalknoded",
-  "version": "0.0.0",
-  "dependencies": {
-    "bootstrap.css": "~2.3.2"
-  }
+    "name": "beanstalknoded",
+    "version": "0.0.0",
+    "dependencies": {
+        "bootstrap": "latest",
+        "knockout": "latest",
+        "jquery": "latest"
+    },
+    "install": {
+        "path": {
+            "css": "public/css",
+            "js": "public/js"
+        }
+    },
+    "sources" : {
+        "bootstrap" : [
+            "components/bootstrap/dist/js/bootstrap.min.js",
+            "components/bootstrap/dist/css/bootstrap.min.css",
+            "components/bootstrap/dist/css/bootstrap-theme.min.css"
+        ],
+        "bootstrap" : [
+            "components/knockout/dist/knockout.js"
+        ],
+        "jquery" : [
+            "components/jquery/dist/jquery.min.js"
+        ]
+    }
 }

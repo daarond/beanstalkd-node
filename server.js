@@ -11,7 +11,6 @@ var server = require('http').createServer(app);
 var io = require('socket.io').listen(server);
 var device  = require('express-device');
 var _ = require("underscore");
-var net = require('net');
 var BeanProcessorModule = require('./beanstalk_processor');
 
 var runningPortNumber = 8002;
@@ -39,20 +38,15 @@ app.get("/", function(req, res){
 	res.render('index', {});
 });
 
-
-io.sockets.on('connection', function (socket) {
-
-	io.sockets.emit('blast', {msg:"<span style=\"color:red !important\">someone connected</span>"});
-
-	socket.on('blast', function(data, fn){
-		console.log(data);
-		io.sockets.emit('blast', {msg:data.msg});
-
-		fn();//call the client back to clear out the field
-	});
-
+app.get("/clients", function(req, res){
+    var json = proc.getClientsJson();
+    res.send(json);
 });
 
+app.get("/jobs", function(req, res){
+    var json = proc.getJobsJson();
+    res.send(json);
+});
 
 
 var proc = new BeanProcessorModule.BeanProcessor();

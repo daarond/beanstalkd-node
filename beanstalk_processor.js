@@ -190,6 +190,8 @@ var BeanProcessor = function()
         } else if (command == 'pause-tube'){
             self.commandPauseTube(bean_command.client, bean_command.commandline[1], bean_command.commandline[2]);
         }
+
+        console.log("Processing command: "+command+", tube "+bean_command.tube);
     };
 
     /**
@@ -910,6 +912,57 @@ var BeanProcessor = function()
         self.eventCounts[BeanProcessorModule.CMD_STATS]++;
     };
 
+    /**
+     * create a json string of client information
+     */
+    self.getClientsJson = function()
+    {
+        var _clients = [];
+        _.each(self.bean_clients, function(_client){
+            var _thisclient = {
+                ipaddress: _client.socket.address,
+                watching: _client.watching,
+                reserving: _client.reserving,
+                reserving_until: _client.reserving_until,
+                isProducer: _client.isProducer,
+                isWorker: _client.isWorker
+            };
+
+            if (_client.current_job != null){
+                _thisclient.job_id = _client.current_job.id;
+            }
+
+            _clients.push(_thisclient);
+        });
+
+        return JSON.stringify(_clients);
+    };
+
+    self.getJobsJson = function()
+    {
+        var _jobs = [];
+        _.each(self.bean_clients, function(_job) {
+            var _thisjob = {
+                id: _job.id,
+                tube: _job.tube,
+                eventCounts: _job.eventCounts,
+                state: _job.state,
+                time_to_run: _job.time_to_run,
+                delay_until: _job.delay_until,
+                timeout_at: _job.timeout_at,
+                priority: _job.priority
+            };
+
+            if (_job.client != null){
+                _thisjob.client_ip = _job.client.socket.address;
+            }
+
+            _jobs.push(_thisjob);
+        });
+
+        return JSON.stringify(_jobs);
+    };
+
 
     /**
      * callback method when a client connects
@@ -917,6 +970,7 @@ var BeanProcessor = function()
      */
     self.newSocket = function(socket)
     {
+        console.log("Client connected from "+socket.address);
         self.bean_clients.push(new BeanClientModule.BeanClient(socket, self));
 
         socket.on('data', function(data) {
@@ -955,6 +1009,7 @@ var BeanProcessor = function()
      */
     self.closeSocket = function(socket)
     {
+        console.log("Client disconnected: "+socket.address);
         self.bean_clients = _.reject(self.bean_clients, function(_client){ return _client.socket == socket; });
     };
 
@@ -968,6 +1023,8 @@ var BeanProcessor = function()
         self.telnet_server = net.createServer(self.newSocket);
         self.telnet_server.listen(port);
 
+        console.log("Beanstalk Server Started");
+
         self.check_interval_timer = setTimeout(self.processCycle, 500);
     };
 
@@ -977,6 +1034,7 @@ var BeanProcessor = function()
     self.stop = function()
     {
         self.telnet_server.close();
+        console.log("Beanstalk Server Stopped");
     }
 };
 

@@ -3,7 +3,7 @@
     <head>
         <meta charset="utf-8">
         <meta http-equiv="X-UA-Compatible" content="IE=edge">
-        <title>beanstalknoded</title>
+        <title>BeanstalkNode</title>
         <meta name="description" content="beanstalkd in node.js">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
@@ -41,43 +41,75 @@
 		<p class="browsehappy">You are using an <strong>outdated</strong> browser. Please <a href="http://browsehappy.com/">upgrade your browser</a> to improve your experience.</p>
 	<![endif]-->
 
-    <div class="container">
-    	<div class="jumbotron">
-        	<h1>beanstalknoded</h1>
-       		<p>beanstalkd in node.js</p>
-       		<div class="row">
-       			<div class="col-md-4 col-sm-6 col-xs-6">
-       				<h3>All Chatter<button id="clearAllPosts" type="button" class="btn btn-danger btn-xs pull-right">clear</button></h3>
-       				<div id="allPosts" class="form-control"></div>
-				    <div class="input-group">
-						<input id="blast" type="text" class="form-control" placeholder="send something to everyone">
-						<span class="input-group-btn">
-							<button id="send" class="btn btn-success" type="button">Send</button>
-						</span>
-				    </div><!-- /input-group -->
-       			</div>
-       		</div>
-		</div>
-	</div>
-    
-    <!-- jQuery --> 
-	<script src="//ajax.googleapis.com/ajax/libs/jquery/2.0.3/jquery.min.js"></script>
-	<script>window.jQuery || document.write('<script src="public/bower_components/jQuery/jquery.min.js"><\/script>')</script>
+
+    <div class="panel panel-default">
+      <!-- Default panel contents -->
+      <div class="panel-heading">Clients</div>
+
+      <!-- Table -->
+      <table class="table">
+          <thead>
+              <tr>
+              <th>IP address</th>
+              <th>Tube</th>
+              <th>Job ID</th>
+              <th>Reserving</th>
+              </tr>
+          </thead>
+          <tr>
+              <td>IP address</td>
+              <td>Tube</td>
+              <td>Job ID</td>
+              <td>Reserving</td>
+          </tr>
+      </table>
+    </div>
+
+
+    <div class="panel panel-default">
+      <!-- Default panel contents -->
+      <div class="panel-heading">Jobs</div>
+
+      <!-- Table -->
+      <table class="table">
+          <thead>
+              <tr>
+              <th>Job Id</th>
+              <th>Tube</th>
+              <th>State</th>
+              <th>TTR</th>
+              <th>Priority</th>
+              <th>Client</th>
+              </tr>
+          </thead>
+          <tr>
+            <td>Job Id</td>
+            <td>Tube</td>
+            <td>State</td>
+            <td>TTR</td>
+            <td>Priority</td>
+            <td>Client</td>
+          </tr>
+      </table>
+    </div>
+
+
+    <!-- jQuery -->
+    <script src="/components/jquery/dist/jquery.min.js"></script>
+
+    <!-- Base theme -->
+    <link rel="stylesheet" href="/components/bootstrap/dist/css/bootstrap.min.css">
+
+    <!-- Optional theme -->
+    <link rel="stylesheet" href="/components/bootstrap/dist/css/bootstrap-theme.min.css">
+
+    <!-- Latest compiled and minified JavaScript -->
+    <script src="/components/bootstrap/dist/js/bootstrap.min.js"></script>
+
+    <script type='text/javascript' src='/components/knockout/dist/knockout.js'></script>
 
     <!-- socket.io -->
     <script src="/socket.io/socket.io.js"></script>
 
-	<!-- APP CODE -->
-	<script src="js/app.min.js"></script>
-
-	<!-- Google Analytics: change UA-XXXXX-X to be your site's ID. -->
-    <script>
-        (function(b,o,i,l,e,r){b.GoogleAnalyticsObject=l;b[l]||(b[l]=
-        function(){(b[l].q=b[l].q||[]).push(arguments)});b[l].l=+new Date;
-        e=o.createElement(i);r=o.getElementsByTagName(i)[0];
-        e.src='//www.google-analytics.com/analytics.js';
-        r.parentNode.insertBefore(e,r)}(window,document,'script','ga'));
-        ga('create','UA-XXXXX-X');ga('send','pageview');
-    </script>
     </body>
 </html>

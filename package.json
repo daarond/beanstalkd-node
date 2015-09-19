@@ -2,7 +2,7 @@
   "name": "beanstalknoded",
   "description": "beanstalk implemented in node.js",
   "author": "Daaron Dwyer <daarond@gmail.com>",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "main": "server.js",
   "private": true,
   "repository": "https://github.com/daarond/beanstalkd-node",
