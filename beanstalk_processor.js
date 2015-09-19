@@ -11,6 +11,7 @@ var moment = require("moment");
 var net = require('net');
 var _ = require("underscore");
 
+// list of constants used for the stats counters
 exports.CMD_PUT = 0;
 exports.CMD_PEEK = 1;
 exports.CMD_PEEK_READY = 2;
@@ -41,22 +42,82 @@ exports.CMD_TOUCH = 23;
 var BeanProcessor = function()
 {
     var self = this;
+
+    /**
+     * array of clients connected
+     * @type {Array}
+     */
     self.bean_clients = [];
+
+    /**
+     * an arbitrary id number for this instance
+     */
     self.id = moment().format('x');
+
+    /**
+     * flag for drain (not accepting puts) mode
+     * @type {boolean}
+     */
     self.drain_mode = false;
-    self.freeze = true;
+
+    /**
+     * flag for stopping the processing timer
+     * @type {boolean}
+     */
+    self.freeze = false;
+
+    /**
+     * list of jobs/messages for all tubes
+     * @type {Array}
+     */
     self.jobs_list = [];
+
+    /**
+     * list of commands to process
+     * @type {Array}
+     */
     self.command_list = [];
+
+    /**
+     * list of tubes on the system
+     * @type {Array}
+     */
     self.tubes = [];
-    self.start_time = moment().format('X');
+
+    /**
+     * starting uptime for this server
+     */
+    self.start_time = 0;
+
+    /**
+     * total number of jobs processed
+     * @type {number}
+     */
     self.total_jobs = 0;
+
+    /**
+     * list of event counters
+     * @type {Array}
+     */
     self.eventCounts = [];
+
+    /**
+     * server instance
+     * @type {null}
+     */
     self.telnet_server = null;
 
+    /**
+     * adds a command to the list
+     * @param bean_command
+     */
     self.addToCommandQueue = function(bean_command) {
         self.command_list.push(bean_command);
     };
 
+    /**
+     * processes the commands, jobs, reserves, and deletes unused tubes
+     */
     self.processCycle = function()
     {
         self.processCommandList();
@@ -65,12 +126,13 @@ var BeanProcessor = function()
         self.deleteUnusedTubes();
 
         if (!self.freeze){
-            self.check_interval_timer = setTimeout(self.processCycle, 3000);
+            self.check_interval_timer = setTimeout(self.processCycle, 500);
         }
     };
 
-    //self.check_interval_timer = setTimeout(self.processCycle, 3000);
-
+    /**
+     * processes the list of commands
+     */
     self.processCommandList = function()
     {
         var list = _.clone(self.command_list);
@@ -79,6 +141,10 @@ var BeanProcessor = function()
         })
     };
 
+    /**
+     * processes a single command
+     * @param bean_command
+     */
     self.processCommand = function(bean_command)
     {
         var command = bean_command.commandline[0];
@@ -126,6 +192,9 @@ var BeanProcessor = function()
         }
     };
 
+    /**
+     * checks the job for timeout, deadline, and delays
+     */
     self.checkJobTimeout = function()
     {
         _.forEach(self.jobs_list, function (_job) {
@@ -147,6 +216,9 @@ var BeanProcessor = function()
         });
     };
 
+    /**
+     * checks the time on paused tubes
+     */
     self.checkTubesPaused = function()
     {
         _.forEach(self.tubes, function(_tube){
@@ -157,6 +229,9 @@ var BeanProcessor = function()
         });
     };
 
+    /**
+     * checks the clients reserving for a duration
+     */
     self.checkClientReserves = function()
     {
         _.forEach(self.bean_clients, function(_client){
@@ -174,6 +249,9 @@ var BeanProcessor = function()
         });
     };
 
+    /**
+     * deletes tables not used by jobs or clients
+     */
     self.deleteUnusedTubes = function()
     {
         // get the list of tubes used by jobs
@@ -195,16 +273,28 @@ var BeanProcessor = function()
         });
     };
 
+    /**
+     * lambda-like function to find a job, returns job object or null
+     * @param job_id
+     */
     self.findJob = function(job_id)
     {
         return _.find(self.jobs_list, function(_job){ return _job.id == job_id; });
     };
 
+    /**
+     * lambda-like function to find a tube, returns tube object or null
+     * @param tube_name
+     */
     self.findTube = function(tube_name)
     {
         return _.find(self.tubes, function(_tube){ return _tube.name == tube_name; });
     };
 
+    /**
+     * attempts to find a tube, but will create one if it does not exist
+     * @param tube_name
+     */
     self.getTube = function(tube_name)
     {
         var tube = self.findTube(tube_name);
@@ -219,17 +309,36 @@ var BeanProcessor = function()
         return tube;
     };
 
+    /**
+     * removes a tube from the list
+     * @param tube_name
+     */
     self.deleteTube = function(tube_name)
     {
         self.tubes = _.reject(self.tubes, function(_tube){ return _tube.name == tube_name; });
     };
 
+    /**
+     * determines if this is a bad tube name
+     * @param tube_name
+     * @returns {boolean}
+     */
     self.isBadTubeName = function(tube_name)
     {
         var tube = tube_name.trim();
         return /[^a-z0-9-+\/;.$_()]/i.test(tube) || tube.length==0 || tube.length > 200;
     };
 
+    /**
+     * command to put a job
+     * @param sender
+     * @param tube
+     * @param priority
+     * @param delay
+     * @param time_to_run
+     * @param byte_count
+     * @param data
+     */
     self.commandPut = function(sender, tube, priority, delay, time_to_run, byte_count, data)
     {
         if (self.drain_mode){
@@ -273,6 +382,11 @@ var BeanProcessor = function()
         sender.send('INSERTED '+job.id);
     };
 
+    /**
+     * command to delete a job
+     * @param sender
+     * @param job_id
+     */
     self.commandDelete = function(sender, job_id)
     {
         // remove it from the jobs list, unless reserved by someone else
@@ -309,6 +423,13 @@ var BeanProcessor = function()
         }
     };
 
+    /**
+     * retrieves a single job in a particular state visible to the indicated client
+     * with the lowest timeout and priority
+     * @param sender
+     * @param state
+     * @returns BeanJob|null
+     */
     self.getJobForClient = function(sender, state)
     {
         if (state == undefined){
@@ -321,10 +442,9 @@ var BeanProcessor = function()
                 var tube = self.findTube(_job.tube);
                 return _.contains(sender.watching, _job.tube)   // client is watching the tube
                         && !tube.paused
-                        && _job.state == state;            // job is ready
+                        && _job.state == state;
             })
             .sortBy('timeout_at')
-            .reverse()
             .sortBy('priority')
             .value();
 
@@ -335,6 +455,10 @@ var BeanProcessor = function()
         }
     };
 
+    /**
+     * command to reserve a job
+     * @param sender
+     */
     self.commandReserve = function(sender)
     {
         var job = self.getJobForClient(sender);
@@ -348,12 +472,17 @@ var BeanProcessor = function()
         }
     };
 
+    /**
+     * command to reserve a job, waiting if there is not one available
+     * @param sender
+     * @param reserve_timeout
+     */
     self.commandReserveTimeout = function(sender, reserve_timeout)
     {
         var job = self.getJobForClient(sender);
 
         if (job != null){
-            // there are already jobs available, so get one of those
+            // there are already jobs available, so serve it up
             self.eventCounts[BeanProcessorModule.CMD_RESERVE]++;
             job.reserve(sender);
         } else if (reserve_timeout > 0){
@@ -361,15 +490,23 @@ var BeanProcessor = function()
             sender.reserving = true;
             sender.reserving_until = moment().add(reserve_timeout, 'seconds');
         } else {
-            // set for a zero timeout, so time it out already
+            // nothing to do and set for a zero timeout, so time it out already
             sender.send("TIMED_OUT");
         }
     };
 
+    /**
+     * command to release a job back to the queue
+     * @param sender
+     * @param job_id
+     * @param priority
+     * @param delay
+     */
     self.commandRelease = function(sender, job_id, priority, delay)
     {
         // set the status on the job
         var job = self.findJob(job_id);
+
         if (job != null) {
             self.eventCounts[BeanProcessorModule.CMD_RELEASE]++;
             job.priority = priority;
@@ -380,6 +517,12 @@ var BeanProcessor = function()
         }
     };
 
+    /**
+     * command to bury a job
+     * @param sender
+     * @param job_id
+     * @param priority
+     */
     self.commandBury = function(sender, job_id, priority)
     {
         // set the status on the job
@@ -395,6 +538,11 @@ var BeanProcessor = function()
         }
     };
 
+    /**
+     * command to touch a job (extend timeout)
+     * @param sender
+     * @param job_id
+     */
     self.commandTouch = function(sender, job_id)
     {
         // set the timeout on the job
@@ -407,6 +555,11 @@ var BeanProcessor = function()
         }
     };
 
+    /**
+     * command to peek at a specific job
+     * @param sender
+     * @param job_id
+     */
     self.commandPeekId = function(sender, job_id)
     {
         var job = self.findJob(job_id);
@@ -419,6 +572,11 @@ var BeanProcessor = function()
         }
     };
 
+    /**
+     * command to peek at jobs with a specific state
+     * @param sender
+     * @param state
+     */
     self.commandPeekState = function(sender, state)
     {
         // peeks the next job in the current queue
@@ -439,6 +597,11 @@ var BeanProcessor = function()
         }
     };
 
+    /**
+     * command to kick a specific job
+     * @param sender
+     * @param job_id
+     */
     self.commandKickJob = function(sender, job_id)
     {
         // kicks a specific job
@@ -453,6 +616,12 @@ var BeanProcessor = function()
         }
     };
 
+    /**
+     * command to pause a tube for a time
+     * @param sender
+     * @param tube_name
+     * @param delay_seconds
+     */
     self.commandPauseTube = function(sender, tube_name, delay_seconds)
     {
         var tube = self.findTube(tube_name);
@@ -468,6 +637,10 @@ var BeanProcessor = function()
         }
     };
 
+    /**
+     * command to list the tubes in yaml
+     * @param sender
+     */
     self.commandListTubes = function(sender)
     {
         var tubenames = _.pluck(self.tubes, 'name');
@@ -478,6 +651,11 @@ var BeanProcessor = function()
         self.eventCounts[BeanProcessorModule.CMD_LIST_TUBES]++;
     };
 
+    /**
+     * command to kick a specific tube
+     * @param sender
+     * @param count
+     */
     self.commandKickTube = function(sender, count)
     {
         // kicks the tube
@@ -537,6 +715,11 @@ var BeanProcessor = function()
         sender.send('KICKED '+kick_count);
     };
 
+    /**
+     * command to retrieve stats for a specific job
+     * @param sender
+     * @param job_id
+     */
     self.commandStatsJob = function(sender, job_id)
     {
         // stats for a specific job
@@ -576,6 +759,11 @@ var BeanProcessor = function()
         }
     };
 
+    /**
+     * command to retrieve stats for a tube
+     * @param sender
+     * @param tube_name
+     */
     self.commandStatsTube = function(sender, tube_name)
     {
         // stats for a tube
@@ -633,6 +821,10 @@ var BeanProcessor = function()
         }
     };
 
+    /**
+     * command to retrieve stats for the server
+     * @param sender
+     */
     self.commandStatsServer = function(sender)
     {
         var msg = "---\n";
@@ -718,8 +910,10 @@ var BeanProcessor = function()
         self.eventCounts[BeanProcessorModule.CMD_STATS]++;
     };
 
-    /*
-     * Callback method executed when a new TCP socket is opened.
+
+    /**
+     * callback method when a client connects
+     * @param socket
      */
     self.newSocket = function(socket)
     {
@@ -737,10 +931,13 @@ var BeanProcessor = function()
         });
     };
 
-    /*
-     * Method executed when data is received from a socket
+
+    /**
+     * data received from socket
+     * @param socket
+     * @param data
      */
-    function receiveData(socket, data)
+    self.receiveData = function(socket, data)
     {
         // find the client
         var _client = _.find(self.bean_clients, function (obj) {
@@ -750,19 +947,33 @@ var BeanProcessor = function()
         if (_client != null) {
             _client.dataReceived(data);
         }
-    }
+    };
 
+    /**
+     * socket has closed, removing the client
+     * @param socket
+     */
     self.closeSocket = function(socket)
     {
         self.bean_clients = _.reject(self.bean_clients, function(_client){ return _client.socket == socket; });
     };
 
+    /**
+     * startup the beanstalk server
+     * @param port
+     */
     self.start = function(port)
     {
+        self.start_time = moment().format('X');
         self.telnet_server = net.createServer(self.newSocket);
         self.telnet_server.listen(port);
+
+        self.check_interval_timer = setTimeout(self.processCycle, 500);
     };
 
+    /**
+     * stop the beanstalk server
+     */
     self.stop = function()
     {
         self.telnet_server.close();

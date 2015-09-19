@@ -32,6 +32,10 @@ var BeanJob = function(client, tube, priority, time_to_run, delay_seconds)
     self.priority = priority;
     self.create_date = new Date();
 
+    /**
+     * assigns the id
+     * written as a function because I had a few instances of same ids
+     */
     self.assignId = function()
     {
         self.id = moment().format('x')+Math.floor(Math.random() * 100);
@@ -39,6 +43,9 @@ var BeanJob = function(client, tube, priority, time_to_run, delay_seconds)
     self.assignId();
 
 
+    /**
+     * writes a job file to the directory
+     */
     self.updateFile = function()
     {
         /*
@@ -52,6 +59,9 @@ var BeanJob = function(client, tube, priority, time_to_run, delay_seconds)
         */
     };
 
+    /**
+     * deletes a job file from the directory
+     */
     self.delete = function()
     {
         /*
@@ -65,6 +75,11 @@ var BeanJob = function(client, tube, priority, time_to_run, delay_seconds)
         */
     };
 
+    /**
+     * marks a job as released
+     * @param delay_seconds int indicates the amount of time to delay before making ready
+     * @note ready is set by processor.checkJobTimeout
+     */
     self.release = function(delay_seconds)
     {
         if (delay_seconds == null || delay_seconds == 0) {
@@ -78,6 +93,9 @@ var BeanJob = function(client, tube, priority, time_to_run, delay_seconds)
         self.updateFile();
     };
 
+    /**
+     * kicks a job from delayed/buried to ready
+     */
     self.kick = function()
     {
         self.eventCounts[BeanJobModule.COUNTER_KICKS]++;
@@ -85,6 +103,9 @@ var BeanJob = function(client, tube, priority, time_to_run, delay_seconds)
         self.updateFile();
     };
 
+    /**
+     * buries a job
+     */
     self.bury = function()
     {
         self.eventCounts[BeanJobModule.COUNTER_BURIES]++;
@@ -92,6 +113,10 @@ var BeanJob = function(client, tube, priority, time_to_run, delay_seconds)
         self.updateFile();
     };
 
+    /**
+     * reserves a job and sends a response
+     * @param sender client object making the request
+     */
     self.reserve = function(sender)
     {
         self.eventCounts[BeanJobModule.COUNTER_RESERVES]++;
@@ -106,12 +131,18 @@ var BeanJob = function(client, tube, priority, time_to_run, delay_seconds)
         self.updateFile();
     };
 
+    /**
+     * touches a job, extending the timeout
+     */
     self.touch = function()
     {
         self.timeout_at = moment().add(self.time_to_run, 'seconds');
         self.updateFile();
     };
 
+    /**
+     * times out a job
+     */
     self.timeout = function()
     {
         self.eventCounts[BeanJobModule.COUNTER_TIMEOUTS]++;

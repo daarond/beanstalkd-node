@@ -23,16 +23,27 @@ var BeanClient = function(socket, processor)
     self.isProducer = false;
     self.isWorker = false;
 
+    /**
+     * sends data to a socket
+     * @param data string to send
+     */
     self.send = function(data)
     {
         socket.write(data+"\r\n");
     };
 
+    /**
+     * closes a socket
+     */
     self.quit = function()
     {
         socket.end();
     };
 
+    /**
+     * sets a client to use a specific tube for future commands
+     * @param tube_name
+     */
     self.useTube = function(tube_name)
     {
         var tube = processor.getTube(tube_name);
@@ -44,6 +55,10 @@ var BeanClient = function(socket, processor)
         }
     };
 
+    /**
+     * adds a tube to the watch list for a client
+     * @param tube_name
+     */
     self.watchTube = function(tube_name)
     {
         var tube = processor.getTube(tube_name);
@@ -58,6 +73,10 @@ var BeanClient = function(socket, processor)
         }
     };
 
+    /**
+     * removes a tube from the watch list
+     * @param tube_name
+     */
     self.ignoreTube = function(tube_name)
     {
         var new_list = _.reject(self.watching, function(_tube){ return _tube == tube_name; });
@@ -69,6 +88,9 @@ var BeanClient = function(socket, processor)
         }
     };
 
+    /**
+     * lists tubes currently watched
+     */
     self.listTubeWatched = function()
     {
         var msg = msg = yaml.safeDump(self.watching);
@@ -78,12 +100,18 @@ var BeanClient = function(socket, processor)
         processor.eventCounts[BeanProcessorModule.CMD_LIST_TUBES_WATCHED]++;
     };
 
+    /**
+     * returns the current tube
+     */
     self.listTubeUsed = function()
     {
         processor.eventCounts[BeanProcessorModule.CMD_LIST_TUBE_USED]++;
         self.send("USING "+self.tube);
     };
 
+    /**
+     * creates a BeanCommand object for use by the processor
+     */
     self.createBeanCommand = function()
     {
         // list-tubes-watched, list-tube-used, watch, ignore
@@ -167,9 +195,13 @@ var BeanClient = function(socket, processor)
         self.data = '';
     };
 
+    /**
+     * handles data received by the socket
+     * @param data
+     */
     self.dataReceived = function(data)
     {
-        data = String(data); // this is a really terrible idea... fix it
+        data = String(data);
         var data_parts = String(data).split(/\r\n/);
         data_parts = _.compact(data_parts);
         var ends_in_crlf = /\r\n$/.test(data);
