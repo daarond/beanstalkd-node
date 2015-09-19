@@ -8,6 +8,7 @@ var BeanClientModule = require('./beanstalk_client');
 var BeanProcessorModule = require('./beanstalk_processor');
 var yaml = require('js-yaml');
 var moment = require("moment");
+var net = require('net');
 var _ = require("underscore");
 
 exports.CMD_PUT = 0;
@@ -50,6 +51,7 @@ var BeanProcessor = function()
     self.start_time = moment().format('X');
     self.total_jobs = 0;
     self.eventCounts = [];
+    self.telnet_server = null;
 
     self.addToCommandQueue = function(bean_command) {
         self.command_list.push(bean_command);
@@ -116,7 +118,7 @@ var BeanProcessor = function()
         } else if (command == 'stats-tube'){
             self.commandStatsTube(bean_command.client, bean_command.commandline[1]);
         } else if (command == 'stats'){
-            self.commandStats(bean_command.client);
+            self.commandStatsServer(bean_command.client);
         } else if (command == 'list-tubes'){
             self.commandListTubes(bean_command.client);
         } else if (command == 'pause-tube'){
@@ -540,32 +542,31 @@ var BeanProcessor = function()
         // stats for a specific job
         var job = self.findJob(job_id);
         if (job != null){
-            var stats = {};
-            stats.id = job_id;
-            stats.tube = job.tube;
+            msg = "---\n";
+            msg += " id: "+job_id+"\n";
+            msg += " tube: "+job.tube+"\n";
 
             var state_string = "ready";
             if (job.state == BeanJobModule.JOBSTATE_DELAYED) state_string = "delayed";
             else if (job.state == BeanJobModule.JOBSTATE_RESERVED) state_string = "reserved";
             else if (job.state == BeanJobModule.JOBSTATE_BURIED) state_string = "buried";
-            stats.state = state_string;
+            msg += " state: "+state_string+"\n";
 
-            stats.pri = job.priority;
+            msg += " pri: "+job.priority+"\n";
 
-            var startmoment = moment(job.id);
-            var nowmoment = moment();
-            stats.age = nowmoment.diff(startmoment, "seconds");
-            stats.timeleft = nowmoment.diff(job.delay_until, "seconds");
+            var startmoment = moment(job.create_date);
+            var nowmoment = moment(new Date());
 
-            stats.file = 0;
+            msg += " age: "+nowmoment.diff(startmoment, "seconds")+"\n";
+            msg += " timeleft: "+nowmoment.diff(job.delay_until, "seconds")+"\n";
+            msg += " file: 0\n";
 
-            stats.reserves = job.eventCounts[BeanClientModule.BeanJob.counter.RESERVES];
-            stats.timeouts = job.eventCounts[BeanClientModule.BeanJob.counter.TIMEOUTS];
-            stats.releases = job.eventCounts[BeanClientModule.BeanJob.counter.RELEASES];
-            stats.buries = job.eventCounts[BeanClientModule.BeanJob.counter.BURIES];
-            stats.kicks = job.eventCounts[BeanClientModule.BeanJob.counter.KICKS];
+            msg += " reserves: "+job.eventCounts[BeanJobModule.COUNTER_RESERVES]+"\n";
+            msg += " timeouts: "+job.eventCounts[BeanJobModule.COUNTER_TIMEOUTS]+"\n";
+            msg += " releases: "+job.eventCounts[BeanJobModule.COUNTER_RELEASES]+"\n";
+            msg += " buries: "+job.eventCounts[BeanJobModule.COUNTER_BURIES]+"\n";
+            msg += " kicks: "+job.eventCounts[BeanJobModule.COUNTER_KICKS]+"\n";
 
-            var msg = yaml.safeDump(stats);
             msg = "OK "+msg.length+"\r\n"+msg;
             sender.send(msg);
 
@@ -579,48 +580,49 @@ var BeanProcessor = function()
     {
         // stats for a tube
         var tube = self.findTube(tube_name);
-        if (job != null){
-            msg += "- name: "+tube.name+"\n";
+        if (tube != null){
+            msg = '---\n';
+            msg = " name: "+tube.name+"\n";
 
-            var list = _.find(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.priority < 1024; });
-            msg += "- current-jobs-urgent: "+list.length+"\n";
+            var list = _.filter(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.priority < 1024; });
+            msg += " current-jobs-urgent: "+list.length+"\n";
 
-            list = _.find(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.status == BeanJobModule.JOBSTATE_READY; });
-            msg += "- current-jobs-ready: "+list.length+"\n";
+            list = _.filter(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.status == BeanJobModule.JOBSTATE_READY; });
+            msg += " current-jobs-ready: "+list.length+"\n";
 
-            list = _.find(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.status == BeanJobModule.JOBSTATE_RESERVED; });
-            msg += "- current-jobs-reserved: "+list.length+"\n";
+            list = _.filter(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.status == BeanJobModule.JOBSTATE_RESERVED; });
+            msg += " current-jobs-reserved: "+list.length+"\n";
 
-            list = _.find(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.status == BeanJobModule.JOBSTATE_DELAYED; });
-            msg += "- current-jobs-delayed: "+list.length+"\n";
+            list = _.filter(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.status == BeanJobModule.JOBSTATE_DELAYED; });
+            msg += " current-jobs-delayed: "+list.length+"\n";
 
-            list = _.find(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.status == BeanJobModule.JOBSTATE_BURIED; });
-            msg += "- current-jobs-buried: "+list.length+"\n";
+            list = _.filter(self.jobs_list, function(_job){ return _job.tube==tube_name && _job.status == BeanJobModule.JOBSTATE_BURIED; });
+            msg += " current-jobs-buried: "+list.length+"\n";
 
-            msg += "- total-jobs: "+tube.total_jobs+"\n";
+            msg += " total-jobs: "+tube.total_jobs+"\n";
 
-            list = _.find(self.bean_clients, function(_client){ return _client.tube == tube.name; });
-            msg += "- current-using: "+list.length+"\n";
+            list = _.filter(self.bean_clients, function(_client){ return _client.tube == tube.name; });
+            msg += " current-using: "+list.length+"\n";
 
-            list = _.find(self.bean_clients, function(_client){ return _client.reserving; });
-            msg += "- current-waiting: "+list.length+"\n";
+            list = _.filter(self.bean_clients, function(_client){ return _client.reserving; });
+            msg += " current-waiting: "+list.length+"\n";
 
-            list = _.find(self.bean_clients, function(_client){ return _.indexOf(_client.watching, tube.name); });
-            msg += "- current-watching: "+list.length+"\n";
+            list = _.filter(self.bean_clients, function(_client){ return _.indexOf(_client.watching, tube.name); });
+            msg += " current-watching: "+list.length+"\n";
 
             var startmoment = moment(tube.pause_start);
             var nowmoment = moment();
             var pause_seconds = nowmoment.diff(startmoment, "seconds");
-            msg += "- pause: "+pause_seconds+"\n";
+            msg += " pause: "+pause_seconds+"\n";
 
-            msg += "- cmd-delete: "+tube.total_deletes+"\n";
+            msg += " cmd-delete: "+tube.total_deletes+"\n";
 
-            msg += "- cmd-pause-tube: "+tube.total_pauses+"\n";
+            msg += " cmd-pause-tube: "+tube.total_pauses+"\n";
 
             startmoment = moment();
             nowmoment = moment(tube.pause_until);
             pause_seconds = nowmoment.diff(startmoment, "seconds");
-            msg += "- pause-time-left: "+pause_seconds+"\n";
+            msg += " pause-time-left: "+pause_seconds+"\n";
 
             msg = "OK "+msg.length+"\r\n"+msg;
             sender.send(msg);
@@ -633,84 +635,138 @@ var BeanProcessor = function()
 
     self.commandStatsServer = function(sender)
     {
-        var msg = "";
+        var msg = "---\n";
 
-        var list = _.find(self.jobs_list, function(_job){ return _job.priority < 1024; });
-        msg += "- current-jobs-urgent: "+list.length+"\n";
+        var list = _.filter(self.jobs_list, function(_job){ return _job.priority < 1024; });
+        msg += " current-jobs-urgent: "+list.length+"\n";
 
-        list = _.find(self.jobs_list, function(_job){ return _job.status == BeanJobModule.JOBSTATE_READY; });
-        msg += "- current-jobs-ready: "+list.length+"\n";
+        list = _.filter(self.jobs_list, function(_job){ return _job.status == BeanJobModule.JOBSTATE_READY; });
+        msg += " current-jobs-ready: "+list.length+"\n";
 
-        list = _.find(self.jobs_list, function(_job){ return _job.status == BeanJobModule.JOBSTATE_RESERVED; });
-        msg += "- current-jobs-reserved: "+list.length+"\n";
+        list = _.filter(self.jobs_list, function(_job){ return _job.status == BeanJobModule.JOBSTATE_RESERVED; });
+        msg += " current-jobs-reserved: "+list.length+"\n";
 
-        list = _.find(self.jobs_list, function(_job){ return _job.status == BeanJobModule.JOBSTATE_DELAYED; });
-        msg += "- current-jobs-delayed: "+list.length+"\n";
+        list = _.filter(self.jobs_list, function(_job){ return _job.status == BeanJobModule.JOBSTATE_DELAYED; });
+        msg += " current-jobs-delayed: "+list.length+"\n";
 
-        list = _.find(self.jobs_list, function(_job){ return _job.status == BeanJobModule.JOBSTATE_BURIED; });
-        msg += "- current-jobs-buried: "+list.length+"\n";
+        list = _.filter(self.jobs_list, function(_job){ return _job.status == BeanJobModule.JOBSTATE_BURIED; });
+        msg += " current-jobs-buried: "+list.length+"\n";
 
-        msg += "- cmd-put: "+self.eventCounts[BeanProcessorModule.CMD_PUT]+"\n";
-        msg += "- cmd-peek: "+self.eventCounts[BeanProcessorModule.CMD_PEEK]+"\n";
-        msg += "- cmd-peek-ready: "+self.eventCounts[BeanProcessorModule.CMD_PEEK_READY]+"\n";
-        msg += "- cmd-peek-delayed: "+self.eventCounts[BeanProcessorModule.CMD_PEEK_DELAYED]+"\n";
-        msg += "- cmd-peek-buried: "+self.eventCounts[BeanProcessorModule.CMD_PEEK_BURIED]+"\n";
-        msg += "- cmd-reserve: "+self.eventCounts[BeanProcessorModule.CMD_RESERVE]+"\n";
-        msg += "- cmd-use: "+self.eventCounts[BeanProcessorModule.CMD_USE]+"\n";
-        msg += "- cmd-watch: "+self.eventCounts[BeanProcessorModule.CMD_WATCH]+"\n";
-        msg += "- cmd-ignore: "+self.eventCounts[BeanProcessorModule.CMD_IGNORE]+"\n";
-        msg += "- cmd-delete: "+self.eventCounts[BeanProcessorModule.CMD_DELETE]+"\n";
-        msg += "- cmd-release: "+self.eventCounts[BeanProcessorModule.CMD_RELEASE]+"\n";
-        msg += "- cmd-bury: "+self.eventCounts[BeanProcessorModule.CMD_BURY]+"\n";
-        msg += "- cmd-kick: "+self.eventCounts[BeanProcessorModule.CMD_KICK]+"\n";
-        msg += "- cmd-stats: "+self.eventCounts[BeanProcessorModule.CMD_STATS]+"\n";
-        msg += "- cmd-stats-job: "+self.eventCounts[BeanProcessorModule.CMD_STATS_JOB]+"\n";
-        msg += "- cmd-stats-tube: "+self.eventCounts[BeanProcessorModule.CMD_STATS_TUBE]+"\n";
-        msg += "- cmd-list-tubes: "+self.eventCounts[BeanProcessorModule.CMD_LIST_TUBES]+"\n";
-        msg += "- cmd-list-tube-used: "+self.eventCounts[BeanProcessorModule.CMD_LIST_TUBE_USED]+"\n";
-        msg += "- cmd-list-tubes-watched: "+self.eventCounts[BeanProcessorModule.CMD_LIST_TUBES_WATCHED]+"\n";
-        msg += "- cmd-pause-tube: "+self.eventCounts[BeanProcessorModule.CMD_PAUSE_TUBE]+"\n";
-        msg += "- job-timeouts: "+self.eventCounts[BeanProcessorModule.CMD_JOB_TIMEOUT]+"\n";
-        msg += "- total-jobs: "+self.eventCounts[BeanProcessorModule.CMD_TOTAL_JOBS]+"\n";
+        msg += " cmd-put: "+self.eventCounts[BeanProcessorModule.CMD_PUT]+"\n";
+        msg += " cmd-peek: "+self.eventCounts[BeanProcessorModule.CMD_PEEK]+"\n";
+        msg += " cmd-peek-ready: "+self.eventCounts[BeanProcessorModule.CMD_PEEK_READY]+"\n";
+        msg += " cmd-peek-delayed: "+self.eventCounts[BeanProcessorModule.CMD_PEEK_DELAYED]+"\n";
+        msg += " cmd-peek-buried: "+self.eventCounts[BeanProcessorModule.CMD_PEEK_BURIED]+"\n";
+        msg += " cmd-reserve: "+self.eventCounts[BeanProcessorModule.CMD_RESERVE]+"\n";
+        msg += " cmd-use: "+self.eventCounts[BeanProcessorModule.CMD_USE]+"\n";
+        msg += " cmd-watch: "+self.eventCounts[BeanProcessorModule.CMD_WATCH]+"\n";
+        msg += " cmd-ignore: "+self.eventCounts[BeanProcessorModule.CMD_IGNORE]+"\n";
+        msg += " cmd-delete: "+self.eventCounts[BeanProcessorModule.CMD_DELETE]+"\n";
+        msg += " cmd-release: "+self.eventCounts[BeanProcessorModule.CMD_RELEASE]+"\n";
+        msg += " cmd-bury: "+self.eventCounts[BeanProcessorModule.CMD_BURY]+"\n";
+        msg += " cmd-kick: "+self.eventCounts[BeanProcessorModule.CMD_KICK]+"\n";
+        msg += " cmd-stats: "+self.eventCounts[BeanProcessorModule.CMD_STATS]+"\n";
+        msg += " cmd-stats-job: "+self.eventCounts[BeanProcessorModule.CMD_STATS_JOB]+"\n";
+        msg += " cmd-stats-tube: "+self.eventCounts[BeanProcessorModule.CMD_STATS_TUBE]+"\n";
+        msg += " cmd-list-tubes: "+self.eventCounts[BeanProcessorModule.CMD_LIST_TUBES]+"\n";
+        msg += " cmd-list-tube-used: "+self.eventCounts[BeanProcessorModule.CMD_LIST_TUBE_USED]+"\n";
+        msg += " cmd-list-tubes-watched: "+self.eventCounts[BeanProcessorModule.CMD_LIST_TUBES_WATCHED]+"\n";
+        msg += " cmd-pause-tube: "+self.eventCounts[BeanProcessorModule.CMD_PAUSE_TUBE]+"\n";
+        msg += " job-timeouts: "+self.eventCounts[BeanProcessorModule.CMD_JOB_TIMEOUT]+"\n";
+        msg += " total-jobs: "+self.eventCounts[BeanProcessorModule.CMD_TOTAL_JOBS]+"\n";
 
         var largest_job = _.max(self.jobs_list, function(_job){ return _job.data.length; });
-        msg += "- max-job-size: "+largest_job.data.length+"\n";
+        if (largest_job != null && largest_job.data != null) {
+            msg += " max-job-size: " + largest_job.data.length + "\n";
+        } else {
+            msg += " max-job-size: 0\n";
+        }
 
-        msg += "- current-tubes: "+self.tubes.length+"\n";
+        msg += " current-tubes: "+self.tubes.length+"\n";
 
-        msg += "- current-connections: "+self.bean_clients.length+"\n";
+        msg += " current-connections: "+self.bean_clients.length+"\n";
 
-        var producers = _.findWhere(self.bean_clients, {isProducer: true});
-        msg += "- current-producers: "+producers.length+"\n";
+        var producers = _.filter(self.bean_clients, function(_client) { return _client.isProducer; });
+        msg += " current-producers: "+producers.length+"\n";
 
-        var workers = _.findWhere(self.bean_clients, {isWorker: true});
-        msg += "- current-workers: "+workers.length+"\n";
+        var workers = _.findWhere(self.bean_clients, function(_client) { return _client.isWorker; });
+        msg += " current-workers: "+workers.length+"\n";
 
-        var waiting = _.findWhere(self.bean_clients, {reserving: true});
-        msg += "- current-waiting: "+waiting.length+"\n";
+        var waiting = _.findWhere(self.bean_clients, function(_client) { return _client.reserving; });
+        msg += " current-waiting: "+waiting.length+"\n";
 
-        msg += "- pid: 0\n";
-        msg += "- version: 0.1\n";
-        msg += "- rusage-utime: 0\n";
-        msg += "- rusage-stime: 0\n";
-        msg += "- uptime: 0\n";
-        msg += "- binlog-oldest-index: 0\n";
-        msg += "- binlog-oldest-index: 0\n";
-        msg += "- binlog-current-index: 0\n";
-        msg += "- binlog-max-size: 0\n";
-        msg += "- binlog-records-written: 0\n";
-        msg += "- binlog-records-migrated: 0\n";
-        msg += "- id: "+self.id+"\n";
-        msg += "- pid: 0\n";
+        msg += " pid: 0\n";
+        msg += " version: 0.1\n";
+        msg += " rusage-utime: 0\n";
+        msg += " rusage-stime: 0\n";
+        msg += " uptime: 0\n";
+        msg += " binlog-oldest-index: 0\n";
+        msg += " binlog-oldest-index: 0\n";
+        msg += " binlog-current-index: 0\n";
+        msg += " binlog-max-size: 0\n";
+        msg += " binlog-records-written: 0\n";
+        msg += " binlog-records-migrated: 0\n";
+        msg += " id: "+self.id+"\n";
+        msg += " pid: 0\n";
 
         var os = require("os");
-        msg += "- hostname: "+os.hostname()+"\n";
+        msg += " hostname: "+os.hostname()+"\n";
 
         msg = "OK "+msg.length+"\r\n"+msg;
         sender.send(msg);
 
         self.eventCounts[BeanProcessorModule.CMD_STATS]++;
     };
+
+    /*
+     * Callback method executed when a new TCP socket is opened.
+     */
+    self.newSocket = function(socket)
+    {
+        self.bean_clients.push(new BeanClientModule.BeanClient(socket, self));
+
+        socket.on('data', function(data) {
+            var _client = _.find(self.bean_clients, function (obj) { return obj.socket == socket; });
+
+            if (_client != null) {
+                _client.dataReceived(data);
+            }
+        });
+        socket.on('end', function() {
+            self.closeSocket(socket);
+        });
+    };
+
+    /*
+     * Method executed when data is received from a socket
+     */
+    function receiveData(socket, data)
+    {
+        // find the client
+        var _client = _.find(self.bean_clients, function (obj) {
+            return obj.socket == socket;
+        });
+
+        if (_client != null) {
+            _client.dataReceived(data);
+        }
+    }
+
+    self.closeSocket = function(socket)
+    {
+        self.bean_clients = _.reject(self.bean_clients, function(_client){ return _client.socket == socket; });
+    };
+
+    self.start = function(port)
+    {
+        self.telnet_server = net.createServer(self.newSocket);
+        self.telnet_server.listen(port);
+    };
+
+    self.stop = function()
+    {
+        self.telnet_server.close();
+    }
 };
 
 exports.BeanProcessor = BeanProcessor;

@@ -12,7 +12,7 @@ var io = require('socket.io').listen(server);
 var device  = require('express-device');
 var _ = require("underscore");
 var net = require('net');
-var BeanClientModule = require('./beanstalk_client');
+var BeanProcessorModule = require('./beanstalk_processor');
 
 var runningPortNumber = 8002;
 
@@ -55,66 +55,8 @@ io.sockets.on('connection', function (socket) {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
 var proc = new BeanProcessorModule.BeanProcessor();
-
-
-/*
- * Method executed when data is received from a socket
- */
-function receiveData(socket, data)
-{
-    // find the client
-    var _client = _.find(proc.bean_clients, function (obj) {
-        return obj.socket == socket;
-    });
-
-    if (_client != null) {
-        _client.dataReceived(data);
-    }
-}
-
-var sockets = [];
-/*
- * Method executed when a socket ends
- */
-function closeSocket(socket) {
-    var i = sockets.indexOf(socket);
-    if (i != -1) {
-        sockets.splice(i, 1);
-    }
-}
-
-/*
- * Callback method executed when a new TCP socket is opened.
- */
-function newSocket(socket) {
-    sockets.push(socket);
-    socket.write('Welcome to the Telnet server!\n');
-
-    proc.bean_clients.push(new BeanClientModule.BeanClient(socket, bean_processor));
-
-    socket.on('data', function(data) {
-        receiveData(socket, data);
-    });
-    socket.on('end', function() {
-        closeSocket(socket);
-    });
-}
-
-// Create a new server and provide a callback for when a connection occurs
-var telnet_server = net.createServer(newSocket);
-telnet_server.listen(8003);
+proc.start(8003);
 
 
 server.listen(runningPortNumber);

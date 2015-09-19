@@ -953,4 +953,56 @@ suite('Client', function() {
         });
     });
 
+    /*
+      /$$$$$$  /$$$$$$$$ /$$$$$$  /$$$$$$$$ /$$$$$$
+     /$$__  $$|__  $$__//$$__  $$|__  $$__//$$__  $$
+     | $$  \__/   | $$  | $$  \ $$   | $$  | $$  \__/
+     |  $$$$$$    | $$  | $$$$$$$$   | $$  |  $$$$$$
+     \____  $$   | $$  | $$__  $$   | $$   \____  $$
+     /$$  \ $$   | $$  | $$  | $$   | $$   /$$  \ $$
+     |  $$$$$$/   | $$  | $$  | $$   | $$  |  $$$$$$/
+     \______/    |__/  |__/  |__/   |__/   \______/
+     */
+    suite.only('Stats', function () {
+        test('job stats', function () {
+            var proc = createProcessorWithTube('testtube');
+            var client = createClient('testtube', proc);
+            var job = addJob(proc, client, BeanJobModule.JOBSTATE_READY);
+
+            client.dataReceived("stats-job "+job.id+"\r\n");
+            proc.processCommandList();
+
+            var result = incoming_data[0].split("\r\n");
+
+            assert(/^OK \d+$/.test(result[0]), "did not receive a good message");
+            var stringdata = incoming_data[0].substr(8);
+            var doc = yaml.safeLoad(stringdata);
+            assert(doc.state == "ready");
+        });
+
+        test('tube stats', function () {
+            var proc = createProcessorWithTube('testtube');
+            var client = createClient('testtube', proc);
+
+            client.dataReceived("stats-tube testtube\r\n");
+            proc.processCommandList();
+
+            var result = incoming_data[0].split("\r\n");
+
+            assert(/^OK \d+$/.test(result[0]), "did not receive a good message");
+        });
+
+        test('server stats', function () {
+            var proc = createProcessorWithTube('testtube');
+            var client = createClient('testtube', proc);
+
+            client.dataReceived("stats\r\n");
+            proc.processCommandList();
+
+            var result = incoming_data[0].split("\r\n");
+
+            assert(/^OK \d+$/.test(result[0]), "did not receive a good message");
+        });
+    });
+
 });

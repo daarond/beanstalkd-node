@@ -24,18 +24,20 @@ var BeanJob = function(client, tube, priority, time_to_run, delay_seconds)
     self.data = '';
     self.client = client;
     self.tube = tube;
-    self.eventCounts = [];
+    self.eventCounts = [0,0,0,0,0];
     self.state = BeanJobModule.JOBSTATE_READY;
     self.time_to_run = time_to_run;
     self.delay_until = moment().add(delay_seconds, 'seconds');
     self.timeout_at = moment().add(delay_seconds + time_to_run, 'seconds');
     self.priority = priority;
+    self.create_date = new Date();
 
     self.assignId = function()
     {
         self.id = moment().format('x')+Math.floor(Math.random() * 100);
     };
     self.assignId();
+
 
     self.updateFile = function()
     {
