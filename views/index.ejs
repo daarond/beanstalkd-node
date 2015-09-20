@@ -7,8 +7,6 @@
         <meta name="description" content="beanstalkd in node.js">
         <meta name="viewport" content="width=device-width, initial-scale=1">
 
-        <link rel="stylesheet" href="css/core.css">
-
         <style>
 
         	input:focus,
@@ -16,16 +14,6 @@
 			textarea:focus,
 			button:focus {
 			    outline: none !important;
-			}
-
-        	#allPosts {
-			    resize: none;
-			    font-size: 12px;
-			    border-radius: 5px;
-			    border: #ccc solid 1px;
-			    line-height: 14px;
-			    height:100px;
-			    overflow: scroll;
 			}
 
 			p{
@@ -50,18 +38,24 @@
       <table class="table">
           <thead>
               <tr>
-              <th>IP address</th>
-              <th>Tube</th>
-              <th>Job ID</th>
-              <th>Reserving</th>
+                  <th>IP address</th>
+                  <th>Tube</th>
+                  <th>State</th>
+                  <th>TTR</th>
+                  <th>Priority</th>
+                  <th>Job ID</th>
               </tr>
           </thead>
-          <tr>
-              <td>IP address</td>
-              <td>Tube</td>
-              <td>Job ID</td>
-              <td>Reserving</td>
-          </tr>
+          <tbody data-bind="foreach:jobs">
+              <tr>
+                  <td><span data-bind="text:ipaddress"></span></td>
+                  <td><span data-bind="text:tube"></span></td>
+                  <td><span data-bind="text:state"></span></td>
+                  <td><span data-bind="text:time_to_run"></span></td>
+                  <td><span data-bind="text:priority"></span></td>
+                  <td><span data-bind="text:job_id"></span></td>
+              </tr>
+          </tbody>
       </table>
     </div>
 
@@ -74,22 +68,24 @@
       <table class="table">
           <thead>
               <tr>
-              <th>Job Id</th>
-              <th>Tube</th>
-              <th>State</th>
-              <th>TTR</th>
-              <th>Priority</th>
-              <th>Client</th>
+                  <th>Job Id</th>
+                  <th>Tube</th>
+                  <th>State</th>
+                  <th>TTR</th>
+                  <th>Priority</th>
+                  <th>Client IP</th>
               </tr>
           </thead>
-          <tr>
-            <td>Job Id</td>
-            <td>Tube</td>
-            <td>State</td>
-            <td>TTR</td>
-            <td>Priority</td>
-            <td>Client</td>
-          </tr>
+          <tbody data-bind="foreach:jobs">
+              <tr>
+                  <td><span data-bind="text:id"></span></td>
+                  <td><span data-bind="text:tube"></span></td>
+                  <td><span data-bind="text:state"></span></td>
+                  <td><span data-bind="text:time_to_run"></span></td>
+                  <td><span data-bind="text:priority"></span></td>
+                  <td><span data-bind="text:client_ip"></span></td>
+              </tr>
+          </tbody>
       </table>
     </div>
 
@@ -110,6 +106,78 @@
 
     <!-- socket.io -->
     <script src="/socket.io/socket.io.js"></script>
+
+    <script>
+        $( document ).ready(function() {
+            ko.applyBindings(vm);
+
+            vm.retrieveJobData();
+            vm.retrieveClientData();
+        });
+
+        var BeanJob = function(data)
+        {
+            var self = this;
+            self.id = ko.observable(data.id);
+            self.tube = ko.observable(data.tube);
+            self.eventCounts = ko.observableArray(data.eventCounts);
+            self.state = ko.observable(data.state);
+            self.time_to_run = ko.observable(data.time_to_run);
+            self.delay_until = ko.observable(data.delay_until);
+            self.timeout_at = ko.observable(data.timeout_at);
+            self.priority = ko.observable(data.priority);
+            self.job_id = ko.observable(data.job_id);
+        };
+
+        var BeanClient = function(data)
+        {
+            var self = this;
+            self.ipaddress = ko.observable(data.ipaddress);
+            self.watching = ko.observableArray(data.watching);
+            self.reserving = ko.observable(data.reserving);
+            self.reserving_until = ko.observable(data.reserving_until);
+            self.isProducer = ko.observable(data.isProducer);
+            self.isWorker = ko.observable(data.isWorker);
+            self.client_ip = ko.observable(data.client_ip);
+        };
+
+        var viewModel = function(){
+            var self = this;
+
+            self.jobs = ko.observableArray([]);
+            self.clients = ko.observableArray([]);
+
+            self.retrieveClientData = function() {
+                $.ajax({
+                    url: "/clients",
+                    dataType: 'json'
+                }).done(function(incoming) {
+                    self.clients.removeAll();
+                    $.each(incoming, function(idx, item){
+                        self.clients.push(new BeanClient(item));
+                    });
+
+                    setTimeout(self.retrieveClientData, 3000);
+                });
+            };
+
+            self.retrieveJobData = function() {
+                $.ajax({
+                    url: "/jobs",
+                    dataType: 'json'
+                }).done(function(incoming) {
+                    self.jobs.removeAll();
+                    $.each(incoming, function(idx, item){
+                        self.jobs.push(new BeanJob(item));
+                    });
+
+                    setTimeout(self.retrieveJobData, 3000);
+                });
+            }
+        };
+
+        var vm = new viewModel();
+    </script>
 
     </body>
 </html>

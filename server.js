@@ -13,6 +13,7 @@ var device  = require('express-device');
 var _ = require("underscore");
 var BeanProcessorModule = require('./beanstalk_processor');
 
+var beanstalkPortNumber = 11300;
 var runningPortNumber = 8002;
 
 // I need to access everything in '/public' directly
@@ -48,10 +49,8 @@ app.get("/jobs", function(req, res){
     res.send(json);
 });
 
-
 var proc = new BeanProcessorModule.BeanProcessor();
-proc.start(8003);
-
+proc.start(beanstalkPortNumber);
 
 server.listen(runningPortNumber);
 
