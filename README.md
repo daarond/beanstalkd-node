@@ -21,3 +21,7 @@ Now that all the pieces are in place, you can start up the beanstalk server with
 ```
 grunt
 ```
+
+## CAVEAT PROGRAMMER
+While it does respond to beanstalk protocol, all jobs are only in memory-- it does not keep data on a restart.
+If people become interested in it, I will implement file serialization.
