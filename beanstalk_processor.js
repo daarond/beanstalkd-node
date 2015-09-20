@@ -920,7 +920,7 @@ var BeanProcessor = function()
         var _clients = [];
         _.each(self.bean_clients, function(_client){
             var _thisclient = {
-                ipaddress: _client.socket.address(),
+                ipaddress: _client.socket.address().address,
                 tube: _client.tube,
                 watching: _client.watching,
                 reserving: _client.reserving,
@@ -955,7 +955,7 @@ var BeanProcessor = function()
             };
 
             if (_job.client != null){
-                _thisjob.client_ip = _job.client.socket.address();
+                _thisjob.client_ip = _job.client.socket.address().address;
             }
 
             _jobs.push(_thisjob);

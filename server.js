@@ -12,6 +12,8 @@ var io = require('socket.io').listen(server);
 var device  = require('express-device');
 var _ = require("underscore");
 var BeanProcessorModule = require('./beanstalk_processor');
+var BeanClientModule = require('./beanstalk_client');
+var BeanJobModule = require('./beanstalk_job');
 
 var beanstalkPortNumber = 11300;
 var runningPortNumber = 8002;
